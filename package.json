@@ -1,0 +1,21 @@
+{
+  "name": "gh-to-database",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Mikeal Rogers <mikeal.rogers@gmail.com> (http://www.mikealrogers.com)",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "level": "^1.4.0",
+    "level-index": "^1.0.4",
+    "level-sublevel": "^6.5.4",
+    "leveldown": "^1.4.4",
+    "levelup": "^1.3.1",
+    "lodash": "^4.6.1",
+    "request": "^2.69.0"
+  }
+}
