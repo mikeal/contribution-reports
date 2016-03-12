@@ -6,6 +6,7 @@ var index = require('level-index')
 var qs = require('querystring')
 var _ = require('lodash')
 var main = require('./')
+var fs = require('fs')
 var ghrequest = require('./ghrequest')(process.env.GHTOKEN)
 
 function testReport () {
@@ -42,6 +43,13 @@ var lastMonth = {
   issues: d(result),
   closed: d(result),
   pulls: d(result),
+  locks: d(result),
+  assignments: d(result),
+  labels: d(result),
+  subscriptions: d(result),
+  mentions: d(result),
+  merged: d(result),
+  milestoned: d(result),
   issue_comments: d(result),
   pull_comments: d(result) 
 }
@@ -87,11 +95,14 @@ function printall () {
       console.log(`* **${val.count}** ${key} were created. **${val.increase} (%${val.percentIncrease})** over previous 30 days (${val.lastMonth.count} total).`)
       console.log(` * **${val.countCommit}** were created by commiters, **${val.countContrib}** by contributors.`)
       console.log(
-      ` * **${val.totalContrib} / ${val.totalCommiters} (%${val.contribToCommit})** commiter to contrib ratio, compared to ` + 
+      ` * **${val.totalContrib} / ${val.totalCommiters} (%${val.contribToCommit})** active contributors to committer ratio, compared to ` + 
       `**${val.lastMonth.totalContrib} / ${val.lastMonth.totalCommiters} (%${val.lastMonth.contribToCommit})** over previous 30 days.`)
+      if (val.people.committers.length) console.log(` * Commiters: ${val.people.committers.join(', ')}`)
+      if (val.people.contributors.length) console.log(` * Contributors: ${val.people.contributors.join(', ')}`)
     } 
   }
   
+  // fs.writeFileSync(path.join(__dirname, 'raw.json'), JSON.stringify(thisMonth))
   
   // console.log(JSON.stringify(lastMonth, null, 2))
   // console.log(JSON.stringify(thisMonth, null, 2))
@@ -132,22 +143,22 @@ function report (obj, collabs, starttime, endtime) {
   }
   
   types.mentioned = _ => {
-    // console.log(obj)
+    add('mentions', obj.actor.login)
   }
   types.subscribed = _ => {
-    
+    add('subscriptions', obj.actor.login)
   }
   types.renamed = _ => {
-    
+
   }
   types.referenced = _ => {
     
   }
   types.labeled = _ => {
-    
+    add('labels', obj.actor.login)
   }
   types.assigned = _ => {
-    
+    add('assignments', obj.actor.login)
   }
   types.head_ref_deleted = _ => {
     
@@ -156,7 +167,7 @@ function report (obj, collabs, starttime, endtime) {
     add('closed', obj.actor.login)
   }
   types.locked = _ => {
-    
+    add('locks', obj.actor.login)
   }
   types.unlabeled = _ => {
     
@@ -172,6 +183,30 @@ function report (obj, collabs, starttime, endtime) {
   }
   types.issue = _ => {
     add('issues', obj.user.login)
+  }
+  types.merged = _ => {
+    add('merged', obj.actor.login)
+  }
+  types.reopened = _ => {
+    
+  }
+  types.unassigned = _ => {
+    
+  }
+  types.milestoned = _ => {
+    add('milestoned', obj.actor.login)
+  }
+  types.demilestoned = _ => {
+    
+  }
+  types.unlocked = _ => {
+    
+  }
+  types.head_ref_restored = _ => {
+    
+  }
+  types.unsubscribed = _ => {
+    
   }
   if (!obj.event) {
     if (types[obj._type]) return types[obj._type]()
