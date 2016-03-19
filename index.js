@@ -37,7 +37,7 @@ function getRepository (token, org, repoid, starttime, endtime, db, cb) {
   }   
     
   function ghrequest (url, cb) {
-    console.log(ghrequest, url)
+    console.log('ghrequest', url)
     request(url, function (e, resp, body) {
       if (e) return cb(e)
       if (resp.headers.link) {
@@ -50,7 +50,6 @@ function getRepository (token, org, repoid, starttime, endtime, db, cb) {
             ;
           l[link.slice(start, end)] = link.slice(1, link.indexOf('>;'))
         })
-
         addEvents(body, function (e, next) {
           if (next && l.next) ghrequest(l.next, cb)
           else cb(null, db)
@@ -65,14 +64,49 @@ function getRepository (token, org, repoid, starttime, endtime, db, cb) {
   var iso = (new Date(starttime)).toISOString()
   var opts = qs.stringify({since: iso, sort: 'updated'})
   var lopts = qs.stringify({state: 'all', sort: 'created'})
+  var host = 'https://api.github.com'
   
   var urls = {
-    issue: `https://api.github.com/repos/${org}/${repoid}/issues?${lopts}`,
-    event: `https://api.github.com/repos/${org}/${repoid}/issues/events`,
-    issue_comment: `https://api.github.com/repos/${org}/${repoid}/issues/comments?${opts}`,
-    pull: `https://api.github.com/repos/${org}/${repoid}/pulls?${lopts}`,
-    pull_comment: `https://api.github.com/repos/${org}/${repoid}/pulls/comments?${opts}`
+    issue: `${host}/repos/${org}/${repoid}/issues?${lopts}`,
+    event: `${host}/repos/${org}/${repoid}/issues/events`,
+    issue_comment: `${host}/repos/${org}/${repoid}/issues/comments?${opts}`,
+    pull: `${host}/repos/${org}/${repoid}/pulls?${lopts}`,
+    pull_comment: `${host}/repos/${org}/${repoid}/pulls/comments?${opts}`
   }
+  
+  function getAllCommits () {
+    var _ghrequest = require('./ghrequest')(token)
+    var u = `${host}/repos/${org}/${repoid}/branches`
+    _ghrequest(u, function (e, branches) {
+      if (e) return cb(e)
+      branches = branches.map(b => b.name)
+      function getBranchCommits () {
+        if (branches.length === 0) return cb(e, db)
+        var branch = branches.shift()
+        console.log('Get branch commmits', repoid, branch)
+        var opts = qs.stringify({since: iso, sha:branch})
+        var u = `${host}/repos/${org}/${repoid}/commits?${opts}`
+        _ghrequest(u, function (e, commits) {
+          if (e) return cb(e)
+          commits.forEach(function (commit) {
+            commit._branch = branch
+            commit._type = 'commit'
+            commit.created_at = commit.commit.committer.date
+          })
+          var ops = commits.map(o => ({
+            type: 'put', 'key': `${o.url}?branch=${branch}`, value: o
+          }))
+          console.log(ops)
+          db.batch(ops, function (e, results) {
+            if (e) return cb(e)
+            getBranchCommits()
+          })
+        })
+      }
+      getBranchCommits()
+    })
+    // cb(e, db)
+  } 
   
   var types = Object.keys(urls)
   function _request () {
@@ -80,7 +114,7 @@ function getRepository (token, org, repoid, starttime, endtime, db, cb) {
     type = t
     ghrequest(urls[t], function (e, db) {
       if (e) return cb(e)
-      if (types.length === 0) cb(e, db)
+      if (types.length === 0) getAllCommits()
       else _request()
     })
   }

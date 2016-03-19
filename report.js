@@ -11,11 +11,11 @@ var ghrequest = require('./ghrequest')(process.env.GHTOKEN)
 
 function testReport () {
   var db = sublevel(levelup(path.join(__dirname, 'db'), {valueEncoding: 'json'}))
-  var sub = db.sublevel('nodejs/node', {valueEncoding: 'json'})
+  var sub = db.sublevel('nodejs/live.nodejs.org', {valueEncoding: 'json'})
   sub = main.getDatabase(sub)  
   
   db.get('meta', function (e, info) {
-    var u = 'https://api.github.com/repos/nodejs/node/collaborators'
+    var u = 'https://api.github.com/repos/nodejs/live.nodejs.org/collaborators'
     ghrequest(u, function (e, results) {
       if (e) return cb(e)
       var collabs = results.map(function (r) {return r.login})
@@ -34,9 +34,57 @@ function testReport () {
 
 testReport()
 
+function getRepos (org, cb) {
+  var u = `https://api.github.com/orgs/${org}/repos`
+
+  ghrequest(u, function (e, results) {
+    if (e) return cb(e)
+    cb(null, results.map(function (r) {return r.name}))
+  })
+}
+
+var repos = fs.readFileSync('./test.output').toString().split('\n').map(o => o.split(' ')[0])
+
+function top (totals) {
+  return people = _.orderBy(Object.keys(totals), key => {
+    return totals[key]
+  }).reverse()
+}
+
+
+function testOrgReport () {
+  var db = sublevel(levelup(path.join(__dirname, 'db2'), {valueEncoding: 'json'}))
+  
+  db.get('meta', function (e, info) {
+    // getRepos('nodejs', function (e, repos) {
+      // if (e) throw e
+      var count = 0
+      repos.forEach(function (repo) {
+        var sub = db.sublevel('nodejs/'+repo, {valueEncoding: 'json'})
+        sub.createValueStream().on('data', v => {
+          report(v, [], info.starttime, info.endtime)
+         }).on('end', function () {
+          count += 1
+          if (count === repos.length) {
+            var totals = thisMonth.total.activity
+            for (var key in thisMonth) {
+              var totals = thisMonth[key].activity
+              var tops = top(totals).slice(0, 10)
+              var line = tops.map(person => `${person} (**${totals[person]}**)`).join('\n * ')
+              console.log(`* Top ${key}: \n * ${line}`)
+            }
+          }
+        })
+      })
+    // }) 
+  })
+}
+
+// testOrgReport()
+
 var d = _.cloneDeep
 var people = {all:[], committers:[], contributors:[]}
-var result = {count: 0, people: d(people), countCommit: 0, countContrib: 0}
+var result = {count: 0, people: d(people), countCommit: 0, countContrib: 0, activity:{}}
 
 var lastMonth = {
   total: d(result),
@@ -128,6 +176,10 @@ function report (obj, collabs, starttime, endtime) {
     mo[_type].people.all.push(person)
     mo.total.count += 1
     mo.total.people.all.push(person)
+    if (!mo[_type].activity[person]) mo[_type].activity[person] = 0
+    mo[_type].activity[person] += 1
+    if (!mo.total.activity[person]) mo.total.activity[person] = 0
+    mo.total.activity[person] += 1
     
     if (collabs.indexOf(person) !== -1) {
       // is a committer
@@ -208,12 +260,18 @@ function report (obj, collabs, starttime, endtime) {
   types.unsubscribed = _ => {
     
   }
+  types.commit = _ => {
+    
+  }
   if (!obj.event) {
     if (types[obj._type]) return types[obj._type]()
     console.log(obj)
   } else {
-   console.log('event', obj.event)
+  //  console.log('event', obj.event)
    types[obj.event]() 
   }
 }
+
+module.exports = report
+module.exports.compact = compact
 
